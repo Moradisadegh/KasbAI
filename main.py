@@ -1,36 +1,28 @@
+from fastapi import FastAPI, HTTPException from pydantic import BaseModel from openai import OpenAI import os from dotenv import load_dotenv
 
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-import openai
-import os
+Load environment variables
 
-app = FastAPI()
+load_dotenv()
 
-openai.api_key = os.getenv("OPENAI_API_KEY")
+Initialize FastAPI and OpenAI client
 
-class BusinessData(BaseModel):
-    business_type: str
-    monthly_income: float
-    monthly_expense: float
-    number_of_customers: int
-    description: str
+app = FastAPI(title="KasbAi Business Analyzer") client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-@app.post("/api/analyze")
-async def analyze(data: BusinessData):
-    try:
-        prompt = f"""
-        نوع کسب‌وکار: {data.business_type}
-        درآمد ماهانه: {data.monthly_income}
-        هزینه ماهانه: {data.monthly_expense}
-        تعداد مشتری ماهانه: {data.number_of_customers}
-        توضیحات: {data.description}
+Define input data model
 
-        لطفاً با استفاده از داده‌های بالا، تحلیل کوتاهی از وضعیت کسب‌وکار ارائه بده و ۳ پیشنهاد برای بهبود فروش بده.
-        """
-        response = openai.ChatCompletion.create(
-            model="gpt-4o",
-            messages=[{"role": "user", "content": prompt}]
-        )
-        return {"analysis": response.choices[0].message.content.strip()}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+class BusinessData(BaseModel): business_type: str monthly_income: float monthly_expense: float number_of_customers: int description: str
+
+Define route for analysis
+
+@app.post("/api/analyze") async def analyze(data: BusinessData): try: prompt = ( f"کسب‌وکار از نوع {data.business_type} با درآمد ماهیانه {data.monthly_income} و " f"هزینه ماهیانه {data.monthly_expense} است. تعداد مشتریان {data.number_of_customers} نفر و توضیح اضافه: {data.description}. " "یک تحلیل کامل برای بهبود این کسب‌وکار بده شامل نقاط ضعف، فرصت‌ها، ایده‌های افزایش درآمد و کاهش هزینه." )
+
+completion = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": prompt}]
+    )
+
+    result = completion.choices[0].message.content.strip()
+    return {"analysis": result}
+
+except Exception as e:
+    raise HTTPException(status_code=500, detail=str(e))
