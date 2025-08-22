@@ -1,0 +1,84 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String          @id @default(cuid())
+  email        String          @unique
+  passwordHash String
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  statements   BankStatement[]
+  analyses     Analysis[]
+}
+
+model BankStatement {
+  id                  String        @id @default(cuid())
+  userId              String
+  user                User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bankName            String
+  periodStart         DateTime
+  periodEnd           DateTime
+  sourceHash          String        @unique // Hash of the raw file to prevent duplicates
+  rawPath_encrypted   String // Encrypted path to the raw file
+  processingStatus    String        @default("PENDING") // PENDING, COMPLETED, FAILED
+  createdAt           DateTime      @default(now())
+  transactions        Transaction[]
+
+  @@index([userId])
+}
+
+model Transaction {
+  id               String         @id @default(cuid())
+  statementId      String
+  statement        BankStatement  @relation(fields: [statementId], references: [id], onDelete: Cascade)
+  date             DateTime
+  refNo            String?
+  kind             TransactionKind
+  amount           Decimal        @db.Decimal(18, 2)
+  balance          Decimal?       @db.Decimal(18, 2)
+  descriptionRaw   String
+  descriptionClean String?
+  counterparty     String?
+  isDuplicate      Boolean        @default(false)
+  categoryId       String?
+  category         Category?      @relation(fields: [categoryId], references: [id])
+  createdAt        DateTime       @default(now())
+
+  @@index([statementId])
+  @@index([date])
+}
+
+model Category {
+  id           String        @id @default(cuid())
+  name         String        @unique // e.g., "Food", "Transport", "Salary"
+  rule_json    Json?         // Regex/keyword rules for auto-categorization
+  transactions Transaction[]
+}
+
+model Analysis {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  from       DateTime
+  to         DateTime
+  provider   String // "openai", "gemini", "local"
+  promptHash String
+  result_json Json
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+}
+
+enum TransactionKind {
+  DEBIT
+  CREDIT
+}
